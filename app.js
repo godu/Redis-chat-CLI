@@ -19,7 +19,7 @@ var switchChannel = function(channel){
     subs[channel].sub.auth('2c46fbd747f1048ced1904b1572514db');
     subs[channel].sub.on('subscribe', function(channel, count){
       chan = channel;
-      pub.publish(channel, nick + ' entre dans le salon : '+ channel);
+      pub.publish(channel, nick + ' is entering ' + channel + ' channel');
     });
     subs[channel].sub.subscribe(channel);
   }
@@ -75,14 +75,13 @@ process.stdin.on('data', function (chunk) {
       nick = param[1];
     }
   }
+  else if(chunk.match(/^\/list/)) {
+    process.stdout.write('Channel\'s list\r\n');
+    for (chann in subs)
+    {
+      process.stdout.write(chann + ' : ' + subs[chann].messages.length + ' remaining messages\r\n');
+    }
+  }
   else if(chunk !== '')
     pub.publish(chan,nick + ': ' + chunk);
-});
-
-process.stdin.on('end', function () {
-  process.stdout.write('end\r\n');
-});
-
-process.on('exit', function () {
-  console.log('About to exit.');
 });
