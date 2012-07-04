@@ -3,7 +3,7 @@
     npm start
 # Commands
 
-- '/exit' : exit application
-- '/channel channel' : go to *channel* channel
-- '/nick nickname' : change your nickname for *nickname*
-- '/list' : list of open channel and their remaining messages
+- `/exit` : exit application
+- `/channel channel` : go to *channel* channel
+- `/nick nickname` : change your nickname for *nickname*
+- `/list` : list of open channel and their remaining messages
