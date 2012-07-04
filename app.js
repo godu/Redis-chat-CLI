@@ -1,45 +1,88 @@
 var os = require('os');
 var redis = require('redis');
-var sub = redis.createClient(9778, 'panga.redistogo.com', {detect_buffers: true});
-sub.auth('2c46fbd747f1048ced1904b1572514db');
 
+var subs = [];
+var sub;
 
+var chan = 'home';
+var nick = os.hostname();
 var pub = redis.createClient(9778, 'panga.redistogo.com', {detect_buffers: true});
 pub.auth('2c46fbd747f1048ced1904b1572514db');
 
-var nick = os.hostname();
-var chan = 'test';
+var switchChannel = function(channel){
+  if(!subs[channel]) {
+    subs[channel] = {
+      sub: null,
+      messages: []
+    };
+    subs[channel].sub = redis.createClient(9778, 'panga.redistogo.com', {detect_buffers: true});
+    subs[channel].sub.auth('2c46fbd747f1048ced1904b1572514db');
+    subs[channel].sub.on('subscribe', function(channel, count){
+      chan = channel;
+      pub.publish(channel, nick + ' entre dans le salon : '+ channel);
+    });
+    subs[channel].sub.subscribe(channel);
+  }
+  else {
+    process.stdout.write('Channel ' + channel + '\r\n');
+  }
+  if(sub){
+    sub.removeAllListeners('message');
+    sub.on("message", function (channel, message) {
+      subs[channel].messages.push(message);
+    });
+  };
+  sub = subs[channel].sub;
+  sub.removeAllListeners('message');
+  while(subs[channel].messages.length > 0) {
+    process.stdout.write(subs[channel].messages.shift() + '\r\n');
+  }
+  sub.on("message", function (channel, message) {
+    process.stdout.write(message + '\r\n');
+  });
+};
 
-sub.on('subscribe', function(channel, count){
-  chan = channel;
-  pub.publish(channel, nick + ' entre dans le salon (' + count + ' personnes).\r\n');
-});
-sub.subscribe(chan);
+switchChannel(chan);
 
-
-sub.on("message", function (channel, message) {
-  process.stdout.write(message);
-});
 
 process.stdin.resume();
 process.stdin.setEncoding('utf8');
 
 process.stdin.on('data', function (chunk) {
-  if(chunk === '/exit\r\n') {
-    pub.publish(chan,nick + ' quitte le salon.');
+  chunk = chunk.toString().substr(0, chunk.toString().length-2);
+  if(chunk.match(/^\/exit/)) {
+    pub.publish(chan,nick + ' left the room');
+    process.stdout.write('Goodbye\r\n');
     process.stdin.pause();
     sub.unsubscribe();
     pub.end();
     sub.end();
   }
-  else if(chunk === '/nick\r\n') {
-    pub.publish(chan,nick + ' est désormais prout.');
+  else if(chunk.match(/^\/channel /)) {
+    var param = chunk.split(' ');
+    if( param[1] && param[1] !== '' ){
+      chan = param[1];
+      switchChannel(chan);
+    }
   }
-  else
+  else if(chunk.match(/^\/nick /)) {
+    var param = chunk.split(' ');
+    if( param[1] && param[1] !== '' ){
+      for (chann in subs)
+      {
+        pub.publish(chann,nick + ' is known as ' + param[1]);
+      }
+      nick = param[1];
+    }
+  }
+  else if(chunk !== '')
     pub.publish(chan,nick + ': ' + chunk);
 });
 
 process.stdin.on('end', function () {
-  process.stdout.write('end');
+  process.stdout.write('end\r\n');
 });
 
+process.on('exit', function () {
+  console.log('About to exit.');
+});
