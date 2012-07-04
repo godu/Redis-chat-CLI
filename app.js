@@ -1,87 +1,86 @@
 var os = require('os');
 var redis = require('redis');
 
-var subs = [];
-var sub;
-
-var chan = 'home';
-var nick = os.hostname();
+var sub = redis.createClient(9778, 'panga.redistogo.com', {detect_buffers: true});
 var pub = redis.createClient(9778, 'panga.redistogo.com', {detect_buffers: true});
+
+sub.auth('2c46fbd747f1048ced1904b1572514db');
 pub.auth('2c46fbd747f1048ced1904b1572514db');
 
-var switchChannel = function(channel){
-  if(!subs[channel]) {
-    subs[channel] = {
-      sub: null,
-      messages: []
-    };
-    subs[channel].sub = redis.createClient(9778, 'panga.redistogo.com', {detect_buffers: true});
-    subs[channel].sub.auth('2c46fbd747f1048ced1904b1572514db');
-    subs[channel].sub.on('subscribe', function(channel, count){
-      chan = channel;
-      pub.publish(channel, nick + ' is entering ' + channel + ' channel');
-    });
-    subs[channel].sub.subscribe(channel);
+var currentChannel = 'home';
+var messages = [];
+var nick = os.hostname();
+
+
+sub.on('ready', function () {
+  sub.subscribe(currentChannel);
+});
+
+pub.on('ready', function () {
+  process.stdin.resume();
+  process.stdin.setEncoding('utf8');
+});
+
+sub.on('subscribe', function (channel, count) {
+  messages[channel] = [];
+  currentChannel = channel;
+  process.stdout.write('You\'re entering the ' + channel + ' room\r\n');
+  pub.publish(channel,nick + ' enter the room');
+});
+
+sub.on('unsubscribe', function (channel, count) {
+  delete messages[channel];
+  if(currentChannel===channel){
+    if(count === 0){
+      // Exit
+    }
+    else
+      currentChannel = Object.keys(messages)[0];
   }
-  else {
-    process.stdout.write('Channel ' + channel + '\r\n');
-  }
-  if(sub){
-    sub.removeAllListeners('message');
-    sub.on("message", function (channel, message) {
-      subs[channel].messages.push(message);
-    });
-  };
-  sub = subs[channel].sub;
-  sub.removeAllListeners('message');
-  while(subs[channel].messages.length > 0) {
-    process.stdout.write(subs[channel].messages.shift() + '\r\n');
-  }
-  sub.on("message", function (channel, message) {
+});
+
+sub.on('message', function(channel, message){
+  console.log('message', channel, message.toString(), messages);
+  if(currentChannel === channel)
     process.stdout.write(message + '\r\n');
-  });
-};
-
-switchChannel(chan);
-
-
-process.stdin.resume();
-process.stdin.setEncoding('utf8');
+  else
+    messages[channel].unshift(message.toString());
+});
 
 process.stdin.on('data', function (chunk) {
-  chunk = chunk.toString().substr(0, chunk.toString().length-2);
-  if(chunk.match(/^\/exit/)) {
-    pub.publish(chan,nick + ' left the room');
+  message = chunk.toString().substr(0, chunk.toString().length-1);
+  if(message.match(/^\/exit/)) {
+    Object.keys(messages).forEach(function(channel){
+      pub.publish(channel,nick + ' left the room');
+    });
     process.stdout.write('Goodbye\r\n');
     process.stdin.pause();
     sub.unsubscribe();
     pub.end();
     sub.end();
   }
-  else if(chunk.match(/^\/channel /)) {
-    var param = chunk.split(' ');
+  else if(message.match(/^\/channel /)) {
+    var param = message.split(' ');
     if( param[1] && param[1] !== '' ){
-      chan = param[1];
-      switchChannel(chan);
+      channel = param[1];
+      sub.subscribe(channel);
     }
   }
-  else if(chunk.match(/^\/nick /)) {
-    var param = chunk.split(' ');
+  else if(message.match(/^\/nick /)) {
+    var param = message.split(' ');
     if( param[1] && param[1] !== '' ){
-      for (chann in subs)
-      {
-        pub.publish(chann,nick + ' is known as ' + param[1]);
-      }
+      Object.keys(messages).forEach(function(channel){
+        pub.publish(channel,nick + ' is known as ' + param[1]);
+      });
       nick = param[1];
     }
   }
-  else if(chunk.match(/^\/list/)) {
+  else if(message.match(/^\/list/)) {
     process.stdout.write('Channel\'s list\r\n');
-    for (chann in subs)
-    {
-      process.stdout.write(chann + ' : ' + subs[chann].messages.length + ' remaining messages\r\n');
-    }
+    Object.keys(messages).forEach(function(channel){
+      process.stdout.write(channel + ' : ' + messages[channel].length + ' remaining messages\r\n');
+    });
   }
-  else if(chunk !== '')
-    pub.publish(chan,nick + ': ' + chunk);
+  else if(message !== '')
+    pub.publish(currentChannel,nick + ': ' + message);
 });
