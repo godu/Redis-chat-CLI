@@ -1,0 +1,13 @@
+{
+    "name" : "Redis-chat",
+    "version" : "0.0.1",
+    "description" : "Redis chat cli",
+    "author": "Arthur Weber <arthur.weber@viacesi.fr>",
+    "maintainers": [
+        "Arthur Weber <arthur.weber@viacesi.fr> (http://twitter.com/godu)"
+    ],
+    "main": "./app.js",
+    "dependencies": {
+        "redis": "*"
+    }
+}
