@@ -9,5 +9,8 @@
     "main": "./app.js",
     "dependencies": {
         "redis": "*"
+    },
+    "scripts": {
+        "start" : "node ./app"
     }
 }
