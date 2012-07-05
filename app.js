@@ -40,7 +40,6 @@ sub.on('unsubscribe', function (channel, count) {
 });
 
 sub.on('message', function(channel, message){
-  console.log('message', channel, message.toString(), messages);
   if(currentChannel === channel)
     process.stdout.write(message + '\r\n');
   else
@@ -48,7 +47,9 @@ sub.on('message', function(channel, message){
 });
 
 process.stdin.on('data', function (chunk) {
-  message = chunk.toString().substr(0, chunk.toString().length-1);
+  message = chunk.toString();
+  message = message.replace('\r', '');
+  message = message.replace('\n', '');
   if(message.match(/^\/exit/)) {
     Object.keys(messages).forEach(function(channel){
       pub.publish(channel,nick + ' left the room');
@@ -63,7 +64,12 @@ process.stdin.on('data', function (chunk) {
     var param = message.split(' ');
     if( param[1] && param[1] !== '' ){
       channel = param[1];
-      sub.subscribe(channel);
+      if(Object.keys(messages).indexOf(channel)===-1)
+        sub.subscribe(channel);
+      else
+        while(messages[channel].length>0){
+          process.stdout.write(messages[channel].pop() + '\r\n');
+        }
     }
   }
   else if(message.match(/^\/nick /)) {
