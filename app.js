@@ -29,6 +29,7 @@ sub.on('subscribe', function (channel, count) {
 });
 
 sub.on('unsubscribe', function (channel, count) {
+  pub.publish(channel,nick + ' left the room');
   delete messages[channel];
   if(currentChannel===channel){
     if(count === 0){
@@ -51,9 +52,6 @@ process.stdin.on('data', function (chunk) {
   message = message.replace('\r', '');
   message = message.replace('\n', '');
   if(message.match(/^\/exit/)) {
-    Object.keys(messages).forEach(function(channel){
-      pub.publish(channel,nick + ' left the room');
-    });
     process.stdout.write('Goodbye\r\n');
     process.stdin.pause();
     sub.unsubscribe();
@@ -70,6 +68,13 @@ process.stdin.on('data', function (chunk) {
         while(messages[channel].length>0){
           process.stdout.write(messages[channel].pop() + '\r\n');
         }
+    }
+  }
+  else if(message.match(/^\/close /)) {
+    var param = message.split(' ');
+    if( param[1] && param[1] !== '' ){
+      channel = param[1];
+      sub.unsubscribe(channel);
     }
   }
   else if(message.match(/^\/nick /)) {
